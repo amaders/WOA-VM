@@ -6,6 +6,7 @@ Run **transformers-only** inference on a throwaway GPU VM with **uv** (no Docker
 
 ## Repo Structure
 
+```bash
 ml-ephemeral/
 ├─ app/
 │  └─ generate.py            # one-prompt inference (transformers)
@@ -15,7 +16,7 @@ ml-ephemeral/
 ├─ .gitignore
 ├─ .env.example              # (optional) HF_TOKEN placeholder
 └─ README.md                 # this file
-
+```
 
 ## 0) Prereqs
 
