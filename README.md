@@ -18,13 +18,7 @@ ml-ephemeral/
 └─ README.md                 # this file
 ```
 
-## 0) Prereqs
 
-- **Voltage Park VM** with NVIDIA GPU (e.g., H100, A100), **Ubuntu 22.04**.
-- **SSH key** added at VM creation.
-- (Optional) **Hugging Face token** for gated/private models (e.g., Llama 3.x).
-
----
 
 
 ## Setting Up and Launching VM
