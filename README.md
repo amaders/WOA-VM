@@ -1,4 +1,4 @@
-# Ephemeral GPU VM Inference (Voltage Park) — One-Page README
+# Ephemeral GPU VM Inference (Voltage Park)
 
 Run **transformers-only** inference on a throwaway GPU VM with **uv** (no Docker, no S3). This guide goes from clean Ubuntu VM → env setup → model download → inference → shutdown.
 
@@ -64,7 +64,7 @@ source ~/.bashrc
 
 ## Inference
 
-(if you want to use a gated/private model)
+(if you want to use a gated model,  create Huggingface, accept the usage conditions for the given model families, and generate access token)
 
 ```bash
 export HF_TOKEN=hf_xxx
