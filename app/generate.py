@@ -7,7 +7,7 @@ DTYPE  = os.environ.get("DTYPE", "auto")   # "auto"|"bfloat16"|"float16"|"float3
 TEMP   = float(os.environ.get("TEMP", "1"))
 TOP_P  = float(os.environ.get("TOP_P", "0.9"))
 MAX_NEW_TOKENS = int(os.environ.get("MAX_NEW_TOKENS", "256"))
-USE_FLASH = os.environ.get("USE_FLASH", "1") == "1"  # best-effort
+USE_FLASH = os.environ.get("USE_FLASH", "0") == "1"  # best-effort
 
 torch.backends.cuda.matmul.allow_tf32 = True
 
