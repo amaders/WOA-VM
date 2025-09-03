@@ -4,6 +4,7 @@
 # - Deactivates conda (base) to avoid /opt/anaconda3 pollution
 # - Creates a fresh .venv via `uv venv`
 # - Installs torch FIRST (cu121 -> cu118), then the rest (only-if-needed)
+# - Installs GitHub CLI (gh) via apt if available
 # - DOES NOT set or change HF cache vars (uses default ~/.cache/huggingface)
 
 set -euo pipefail
@@ -78,6 +79,19 @@ if [[ -n "${CONDA_PREFIX:-}" ]]; then
   fi
 fi
 
+# --------------------- INSTALL GH (GitHub CLI) -------------------------------
+if ! command -v gh >/dev/null 2>&1; then
+  if command -v apt-get >/dev/null 2>&1; then
+    echo "[bootstrap] installing GitHub CLI (gh) via apt..."
+    sudo apt-get update -y
+    sudo apt-get install -y gh
+  else
+    echo "[bootstrap] WARNING: apt-get not found; skipping gh install."
+  fi
+else
+  echo "[bootstrap] GitHub CLI (gh) already installed."
+fi
+
 # ------------------------ ENSURE uv & CREATE VENV ---------------------------
 ensure_uv
 
@@ -134,7 +148,4 @@ echo
 echo "[bootstrap] done."
 echo "Activate venv and run inference:"
 echo "  source ${VENV_DIR}/bin/activate"
-echo "  MODEL=meta-llama/Llama-3.1-8B-Instruct PROMPT='Say hi' python app/generate.py"
-echo
-echo "Or, without activating:"
-echo "  MODEL=meta-llama/Llama-3.1-8B-Instruct PROMPT='Say hi' ${VENV_DIR}/bin/python app/generate.py"
+echo "  MODEL=gpt2 PROMPT='Say hi' python app/generate.py"
