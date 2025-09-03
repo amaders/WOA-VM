@@ -1,123 +1,140 @@
 #!/usr/bin/env bash
-# Ephemeral GPU VM bootstrap (Voltage Park friendly)
-# - Installs uv (user-local)
-# - Creates .venv and installs deps
-# - Sets Hugging Face cache (HOME by default; /mnt if present)
-# Usage:
-#   bash scripts/bootstrap_uv.sh
+# Bootstrap with uv (no Docker, default HF cache, Torch-first)
+# - Installs uv and fixes PATH (handles ~/.local/bin and ~/.cargo/bin)
+# - Deactivates conda (base) to avoid /opt/anaconda3 pollution
+# - Creates a fresh .venv via `uv venv`
+# - Installs torch FIRST (cu121 -> cu118), then the rest (only-if-needed)
+# - DOES NOT set or change HF cache vars (uses default ~/.cache/huggingface)
+
 set -euo pipefail
 
 # --------------------------- SETTINGS ---------------------------------------
-PY_VER="${PY_VER:-3.11}"          # override: PY_VER=3.10 bash scripts/bootstrap_uv.sh
-VENV_DIR="${VENV_DIR:-.venv}"     # local virtual env directory
+PY_VER="${PY_VER:-3.11}"
+VENV_DIR="${VENV_DIR:-.venv}"
+TORCH_VERSION="${TORCH_VERSION:-2.4.0}"    # pinned to avoid large CUDA churn
+INSTALL_ACCELERATE="${INSTALL_ACCELERATE:-1}"
+
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VENV_PATH="${PROJECT_ROOT}/${VENV_DIR}"
+VENV_BIN="${VENV_PATH}/bin"
+VENV_PY="${VENV_BIN}/python"
+VENV_PIP="${VENV_BIN}/pip"
 
-# Optional: user override for cache path
-# If provided, wins over autodetection.
-USER_HF_CACHE="${HF_CACHE_DIR:-}"
-
-# Minimum free GB to avoid first-download surprises for 8B–13B models
-THRESHOLD_GB="${HF_MIN_FREE_GB:-20}"
-
-# ------------------------ UV INSTALL / PATH ---------------------------------
-if ! command -v uv >/dev/null 2>&1; then
-  echo "[bootstrap] installing uv..."
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  export PATH="$HOME/.cargo/bin:$PATH"
-  if ! grep -q 'export PATH="$HOME/.cargo/bin:$PATH"' "$HOME/.bashrc" 2>/dev/null; then
-    echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$HOME/.bashrc"
+# ------------------------ HELPERS -------------------------------------------
+add_path_persist() {
+  local dir="$1"
+  case ":$PATH:" in *":$dir:"*) ;; *) export PATH="$dir:$PATH" ;; esac
+  if [ -f "$HOME/.bashrc" ] && ! grep -q "export PATH=\"$dir:\$PATH\"" "$HOME/.bashrc" 2>/dev/null; then
+    echo "export PATH=\"$dir:\$PATH\"" >> "$HOME/.bashrc"
   fi
-else
-  echo "[bootstrap] uv already present."
-fi
-
-# -------------------------- VENV & BASE DEPS --------------------------------
-echo "[bootstrap] creating venv with Python ${PY_VER} at ${VENV_DIR} ..."
-uv venv "${VENV_DIR}" --python "${PY_VER}"
-
-echo "[bootstrap] syncing project dependencies (excluding torch)..."
-cd "${PROJECT_ROOT}"
-uv sync
-
-# ------------------------- TORCH (CUDA WHEELS) ------------------------------
-try_install_torch() {
-  local index_url="$1"
-  echo "[bootstrap] attempting torch install from: ${index_url}"
-  if uv pip install --extra-index-url "${index_url}" "torch==2.4.0"; then
-    echo "[bootstrap] torch installed from ${index_url}"
-    return 0
-  fi
-  return 1
 }
 
-TORCH_OK=0
-if try_install_torch "https://download.pytorch.org/whl/cu121"; then
-  TORCH_OK=1
-else
-  echo "[bootstrap] cu121 failed, trying cu118..."
-  if try_install_torch "https://download.pytorch.org/whl/cu118"; then
-    TORCH_OK=1
+ensure_uv() {
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "[bootstrap] installing uv..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+  fi
+  # common install locations
+  for d in "$HOME/.local/bin" "$HOME/.cargo/bin"; do
+    [ -x "$d/uv" ] && add_path_persist "$d"
+  done
+  # some uv installers drop an env file—source & persist it
+  if [ -f "$HOME/.local/bin/env" ]; then
+    # shellcheck disable=SC1090
+    source "$HOME/.local/bin/env"
+    if ! grep -q 'source "$HOME/.local/bin/env"' "$HOME/.bashrc" 2>/dev/null; then
+      echo 'source "$HOME/.local/bin/env"' >> "$HOME/.bashrc"
+    fi
+  fi
+  hash -r || true
+  command -v uv >/dev/null 2>&1 || {
+    echo "[bootstrap] ERROR: uv not on PATH. Run: export PATH=\"\$HOME/.local/bin:\$PATH\""; exit 1;
+  }
+}
+
+ensure_pip_in_venv() {
+  if "${VENV_PY}" -m pip --version >/dev/null 2>&1; then return 0; fi
+  echo "[bootstrap] pip missing in venv; trying ensurepip..."
+  if "${VENV_PY}" -Im ensurepip --upgrade >/dev/null 2>&1; then
+    "${VENV_PY}" -m pip install --upgrade pip wheel setuptools
+    return 0
+  fi
+  echo "[bootstrap] ensurepip unavailable; fetching get-pip.py..."
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
+  else
+    wget -qO /tmp/get-pip.py https://bootstrap.pypa.io/get-pip.py
+  fi
+  "${VENV_PY}" /tmp/get-pip.py
+  "${VENV_PY}" -m pip install --upgrade pip wheel setuptools
+}
+
+# --------------------- AVOID CONDA HIJACKING --------------------------------
+if [[ -n "${CONDA_PREFIX:-}" ]]; then
+  echo "[bootstrap] deactivating conda base..."
+  if command -v conda >/dev/null 2>&1; then
+    eval "$(conda shell.bash hook 2>/dev/null)" || true
+    conda deactivate || true
   fi
 fi
 
-if [ "${TORCH_OK}" -ne 1 ]; then
-  echo "[bootstrap] ERROR: torch install failed (cu121 & cu118)."
-  echo "Check drivers with 'nvidia-smi' and ensure compatibility, then retry."
-  exit 1
+# ------------------------ ENSURE uv & CREATE VENV ---------------------------
+ensure_uv
+
+echo "[bootstrap] creating fresh venv ${VENV_DIR} with Python ${PY_VER} ..."
+# remove existing venv to avoid interactive uv prompt
+[ -d "${VENV_PATH}" ] && rm -rf "${VENV_PATH}"
+uv venv "${VENV_PATH}" --python "${PY_VER}"
+
+"${VENV_PY}" -V
+ensure_pip_in_venv
+
+# --------------------- INSTALL TORCH FIRST (CUDA WHEELS) --------------------
+try_torch() { "${VENV_PY}" -m pip install --upgrade --extra-index-url "$1" "torch==${TORCH_VERSION}"; }
+
+echo "[bootstrap] installing torch==${TORCH_VERSION} (CUDA wheels)..."
+if try_torch https://download.pytorch.org/whl/cu121; then
+  echo "[bootstrap] torch (cu121) installed into ${VENV_DIR}"
+elif try_torch https://download.pytorch.org/whl/cu118; then
+  echo "[bootstrap] torch (cu118) installed into ${VENV_DIR}"
+else
+  echo "[bootstrap] ERROR: torch install failed for cu121 & cu118. Check 'nvidia-smi'/drivers."; exit 1
 fi
 
-# ------------------------- GPU INVENTORY ------------------------------------
+# --------------------- INSTALL THE REST (reuse torch) -----------------------
+DEPS=(
+  "transformers==4.44.2"
+  "sentencepiece==0.2.0"
+  "huggingface-hub==0.24.6"
+  "hf-transfer==0.1.6"
+  "requests>=2.32,<3"
+)
+if [[ "${INSTALL_ACCELERATE}" == "1" ]]; then
+  DEPS+=("accelerate==0.33.0")
+fi
+
+echo "[bootstrap] installing deps (won't upgrade torch)..."
+"${VENV_PY}" -m pip install --upgrade --upgrade-strategy only-if-needed "${DEPS[@]}"
+
+# ------------------------- OPTIONAL: GPU INFO --------------------------------
 if command -v nvidia-smi >/dev/null 2>&1; then
   echo "[bootstrap] GPU inventory:"
   nvidia-smi || true
-else
-  echo "[bootstrap] NOTE: 'nvidia-smi' not found; ensure this VM image has NVIDIA drivers."
 fi
 
-# ---------------------- HUGGING FACE CACHE ----------------------------------
-# Priority:
-#   1) explicit HF_CACHE_DIR env provided by user
-#   2) /mnt/hf-cache if /mnt exists
-#   3) $HOME/.cache/huggingface
-if [ -n "${USER_HF_CACHE}" ]; then
-  HF_CACHE="${USER_HF_CACHE}"
-elif [ -d /mnt ]; then
-  HF_CACHE="/mnt/hf-cache"
-else
-  HF_CACHE="$HOME/.cache/huggingface"
+# --------------------------- HF CACHE NOTE ----------------------------------
+if [[ -n "${HF_HOME:-}" || -n "${HUGGINGFACE_HUB_CACHE:-}" ]]; then
+  echo "[bootstrap] NOTE: HF cache env vars detected (HF_HOME/HUGGINGFACE_HUB_CACHE)."
+  echo "           Using those instead of the default (~/.cache/huggingface)."
+  echo "           To use the default, unset them in your shell."
 fi
 
-mkdir -p "${HF_CACHE}"
-
-# Persist env for future shells (won't overwrite if already present)
-if ! grep -q 'HUGGINGFACE_HUB_CACHE' "$HOME/.bashrc" 2>/dev/null; then
-  {
-    echo "export HF_HOME='${HF_CACHE}'"
-    echo "export HUGGINGFACE_HUB_CACHE='${HF_CACHE}'"
-  } >> "$HOME/.bashrc"
-fi
-
-# ------------------------ FREE-SPACE CHECK ----------------------------------
-check_space_gb() {
-  # Prints free GiB for filesystem containing the given path
-  df -BG "$1" 2>/dev/null | awk 'NR==2 {gsub("G","",$4); print $4}'
-}
-
-FREE_GB="$(check_space_gb "${HF_CACHE}" || echo 0)"
-if [ -z "${FREE_GB}" ]; then FREE_GB=0; fi
-
-if [ "${FREE_GB}" -lt "${THRESHOLD_GB}" ]; then
-  echo "[bootstrap] WARNING: Only ~${FREE_GB} GiB free at cache path: ${HF_CACHE}"
-  echo "           Large models (8B–13B) may require 15–30 GiB on first download."
-  echo "           To override, re-run with a bigger path, e.g.:"
-  echo "             HF_CACHE_DIR=/path/with/space bash scripts/bootstrap_uv.sh"
-  echo "           Or set before loading models:"
-  echo "             export HF_HOME=/path/with/space"
-  echo "             export HUGGINGFACE_HUB_CACHE=/path/with/space"
-fi
-
-# ---------------------------- DONE ------------------------------------------
+# -------------------------------- DONE --------------------------------------
 echo
-echo "[bootstrap] done! Open a new shell or run:  source ~/.bashrc"
-echo "[bootstrap] quick test:"
-echo "  MODEL=meta-llama/Llama-3.1-8B-Instruct PROMPT='Say hi.' uv run python app/generate.py"
+echo "[bootstrap] done."
+echo "Activate venv and run inference:"
+echo "  source ${VENV_DIR}/bin/activate"
+echo "  MODEL=meta-llama/Llama-3.1-8B-Instruct PROMPT='Say hi' python app/generate.py"
+echo
+echo "Or, without activating:"
+echo "  MODEL=meta-llama/Llama-3.1-8B-Instruct PROMPT='Say hi' ${VENV_DIR}/bin/python app/generate.py"
