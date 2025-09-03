@@ -35,7 +35,7 @@ ssh ubuntu@<VM_PUBLIC_IP>
 
 From the VM:
 ```bash
-git clone https://github.com/YOUR-ORG/ml-ephemeral.git
+git clone https://github.com/amaders/WOA-VM.git
 cd ml-ephemeral
 ```
 
