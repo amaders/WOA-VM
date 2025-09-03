@@ -62,6 +62,8 @@ Load environmental variables into current shell:
 source ~/.bashrc
 ```
 
+## Inference
+
 (if you want to use a gated/private model)
 
 ```bash
