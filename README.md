@@ -26,12 +26,28 @@ ml-ephemeral/
 
 ---
 
-## 1) Launch & SSH
 
-From your laptop:
+## Setting Up and Launching VM
+
+1. `ssh-keygen` in the terminal and give it a name, e.g. “voltage” (don't necessarily need to add password)
+2. Upload the public ssh key to voltage park - organisation - managing ssh keys
+3. Create the VM via voltage park website
+4. From Cursor/VS Code, click "Connect Via SSH" -> "Configure SSH Hosts..." -> ".ssh/config" (If it exists, otherwise need to create .ssh file) -> copy and paste
+
 ```bash
-ssh ubuntu@<VM_PUBLIC_IP>
+Host voltage
+    HostName [host name, something like xxx.xx.xx.xxx]
+    Port [port name, following the -p]
+    User user
+    IdentityFile ~/.ssh/[ssh key name here]
+    IdentitiesOnly yes
+    AddKeysToAgent yes
+    UseKeychain yes   # macOS
 ```
+
+5. Click out of the file, click on "Connect Via SSH", select "voltage"
+
+## Configuring VM
 
 From the VM:
 ```bash
