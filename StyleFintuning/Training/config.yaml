@@ -1,0 +1,44 @@
+wandb_project: llama3-subjective-sft #
+wandb_name: llama3-8b_subjective_sft_reasoning
+wandb_mode: online
+wandb_log_model: "end"                        # "checkpoint" logs every save; "end" only final model
+logging_steps: 10
+
+base_model: meta-llama/Meta-Llama-3-8B-Instruct        # Hugging Face model ID for LLaMA3-8B-Instruct
+model_type: LlamaForCausalLM                          # Model architecture class (Llama causal language model)
+tokenizer_type: LlamaTokenizer                        # Tokenizer class matching the LLaMA model
+is_llama_derived_model: true                          # Indicates this model is LLaMA-based (for internal optimizations)
+
+output_dir: ./output/llama3-8b-sft                    # Directory to save the fine-tuned model
+num_epochs: 1                                         # Train for 1 epoch over the dataset
+micro_batch_size: 16                                  # Number of samples per GPU per step
+gradient_accumulation_steps: 16                       # Accumulate gradients over 16 steps (16 * 16 = 256 batch size)
+learning_rate: 0.00002                                # Initial learning rate for the optimizer (2e-5)
+lr_scheduler: cosine                                  # Use a cosine decay learning rate scheduler
+optimizer: adamw_bnb_8bit                             # 8-bit AdamW optimizer for memory efficiency
+
+datasets:
+
+  - path: /Users/amader/Desktop/Work/CuiLab/WOA_VM/StyleFintuning/Data/ax_data/train.jsonl #path to trian dataset
+    type: #type is null for SFT
+
+    #chat_template: chatml #we are using ChatML instruction format for training
+    chat_template: llama3 #we are using llama3 instruction format for training llama models
+
+    message_property_mappings:  # our mapping is consistent with ChatML
+      role: role
+      content: content
+    
+    #define how to map role keys to roles (this is may be redundant, but whatever)
+    roles:
+      assistant:
+        - assistant
+      user:
+        - user
+    
+    roles_to_train: ["assistant"]
+    train_on_eos: "turn"
+
+#we dont need this for Llama training because the chat template is llama3 and is consistent with the tokenization
+# special_tokens:
+#   eos_token: <|im_end|> 

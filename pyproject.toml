@@ -12,10 +12,11 @@ dependencies = [
   "huggingface-hub==0.24.6",
   "hf-transfer==0.1.6",
   "requests>=2.32.0,<3",
+  "datasets>=2.0.0",
+  "python-dotenv>=0.19.0",
 ]
 
 [tool.uv]
-python = "3.11"
 
 [tool.uv.sources]
 # leave empty; torch comes from the bootstrap script with CUDA extra-index
