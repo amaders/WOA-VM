@@ -1,0 +1,37 @@
+# Hidden files and directories (but not .gitignore)
+.*
+!.gitignore
+
+# Python virtual environment
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+
+# Large training data files
+StyleFintuning/Data/direct_response/
+StyleFintuning/Data/reasoning_traces/
+*.jsonl
+
+# Model files
+*.bin
+*.safetensors
+*.ckpt
+*.pth
+
+# Temporary files
+tmp_*
+*.tmp
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
