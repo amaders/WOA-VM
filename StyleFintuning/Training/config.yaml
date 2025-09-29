@@ -19,7 +19,7 @@ optimizer: adamw_bnb_8bit                             # 8-bit AdamW optimizer fo
 
 datasets:
 
-  - path: /Users/amader/Desktop/Work/CuiLab/WOA_VM/StyleFintuning/Data/direct_response/train.jsonl #path to trian dataset
+  - path: StyleFintuning/Data/direct_response/train.jsonl #path to trian dataset
     type: #type is null for SFT
 
     #chat_template: chatml #we are using ChatML instruction format for training
