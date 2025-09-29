@@ -12,7 +12,8 @@ set -euo pipefail
 # --------------------------- SETTINGS ---------------------------------------
 PY_VER="${PY_VER:-3.11}"
 VENV_DIR="${VENV_DIR:-.venv}"
-TORCH_VERSION="${TORCH_VERSION:-2.4.0}"    # pinned to avoid large CUDA churn
+# Default to a minimum acceptable version; allow override via env TORCH_VERSION
+TORCH_VERSION="${TORCH_VERSION:-2.6.0}"
 INSTALL_ACCELERATE="${INSTALL_ACCELERATE:-1}"
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -107,12 +108,15 @@ ensure_pip_in_venv
 try_torch() { "${VENV_PY}" -m pip install --upgrade --extra-index-url "$1" "torch==${TORCH_VERSION}"; }
 
 echo "[bootstrap] installing torch==${TORCH_VERSION} (CUDA wheels)..."
-if try_torch https://download.pytorch.org/whl/cu121; then
+# Try newest CUDA runtime first (cu124), then cu121, then cu118
+if try_torch https://download.pytorch.org/whl/cu124; then
+  echo "[bootstrap] torch (cu124) installed into ${VENV_DIR}"
+elif try_torch https://download.pytorch.org/whl/cu121; then
   echo "[bootstrap] torch (cu121) installed into ${VENV_DIR}"
 elif try_torch https://download.pytorch.org/whl/cu118; then
   echo "[bootstrap] torch (cu118) installed into ${VENV_DIR}"
 else
-  echo "[bootstrap] ERROR: torch install failed for cu121 & cu118. Check 'nvidia-smi'/drivers."; exit 1
+  echo "[bootstrap] ERROR: torch install failed for cu124, cu121 & cu118. Check 'nvidia-smi'/drivers."; exit 1
 fi
 
 # --------------------- INSTALL THE REST (reuse torch) -----------------------
