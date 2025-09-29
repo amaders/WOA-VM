@@ -6,7 +6,7 @@ logging_steps: 10
 
 base_model: meta-llama/Meta-Llama-3-8B-Instruct        # Hugging Face model ID for LLaMA3-8B-Instruct
 model_type: LlamaForCausalLM                          # Model architecture class (Llama causal language model)
-tokenizer_type: LlamaTokenizer                        # Tokenizer class matching the LLaMA model
+tokenizer_type: AutoTokenizer                        # Tokenizer class matching the LLaMA model
 is_llama_derived_model: true                          # Indicates this model is LLaMA-based (for internal optimizations)
 
 output_dir: ./output/llama3-8b-sft                    # Directory to save the fine-tuned model
@@ -19,7 +19,7 @@ optimizer: adamw_bnb_8bit                             # 8-bit AdamW optimizer fo
 
 datasets:
 
-  - path: /Users/amader/Desktop/Work/CuiLab/WOA_VM/StyleFintuning/Data/ax_data/train.jsonl #path to trian dataset
+  - path: /Users/amader/Desktop/Work/CuiLab/WOA_VM/StyleFintuning/Data/direct_response/train.jsonl #path to trian dataset
     type: #type is null for SFT
 
     #chat_template: chatml #we are using ChatML instruction format for training
