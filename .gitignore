@@ -15,6 +15,8 @@ venv/
 # Large training data files
 StyleFintuning/Data/direct_response/
 StyleFintuning/Data/reasoning_traces/
+StyleFintuning/Eval/direct_response/
+
 *.jsonl
 
 # Model files
