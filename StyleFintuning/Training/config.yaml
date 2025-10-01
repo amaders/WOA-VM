@@ -11,11 +11,21 @@ is_llama_derived_model: true                          # Indicates this model is 
 
 output_dir: ./output/llama3-8b-sft                    # Directory to save the fine-tuned model
 num_epochs: 1                                         # Train for 1 epoch over the dataset
-micro_batch_size: 16                                  # Number of samples per GPU per step
-gradient_accumulation_steps: 16                       # Accumulate gradients over 16 steps (16 * 16 = 256 batch size)
+
+# to fit memory at the larger window on a single H100:
+gradient_checkpointing: true
+deepspeed: StyleFintuning/Training/zero2_offload.json
+micro_batch_size: 4                # was 16
+gradient_accumulation_steps: 32    # keep effective batch = 8 * 32 = 256
+bf16: true
+
+sequence_len: 2048
+max_prompt_len: 2048
+
+
 learning_rate: 0.00002                                # Initial learning rate for the optimizer (2e-5)
 lr_scheduler: cosine                                  # Use a cosine decay learning rate scheduler
-optimizer: adamw_bnb_8bit                             # 8-bit AdamW optimizer for memory efficiency
+optimizer: adamw_torch                             
 
 datasets:
 
@@ -40,5 +50,5 @@ datasets:
     train_on_eos: "turn"
 
 #we dont need this for Llama training because the chat template is llama3 and is consistent with the tokenization
-# special_tokens:
-#   eos_token: <|im_end|> 
+special_tokens:
+  pad_token: "<|end_of_text|>"

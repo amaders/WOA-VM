@@ -126,6 +126,9 @@ DEPS=(
   "huggingface-hub==0.24.6"
   "hf-transfer==0.1.6"
   "requests>=2.32,<3"
+  "datasets>=2.0.0"
+  "python-dotenv>=0.19.0"
+  "wandb>=0.16.0"
 )
 if [[ "${INSTALL_ACCELERATE}" == "1" ]]; then
   DEPS+=("accelerate==0.33.0")
@@ -133,6 +136,15 @@ fi
 
 echo "[bootstrap] installing deps (won't upgrade torch)..."
 "${VENV_PY}" -m pip install --upgrade --upgrade-strategy only-if-needed "${DEPS[@]}"
+
+
+
+# --------------------- INSTALL AXOLOTL (official guide) ---------------------
+echo "[bootstrap] installing axolotl prerequisites..."
+"${VENV_PY}" -m pip install -U packaging==23.2 setuptools==75.8.0 wheel ninja
+
+echo "[bootstrap] installing axolotl with flash-attn and deepspeed..."
+"${VENV_PY}" -m pip install --no-build-isolation axolotl[flash-attn,deepspeed]
 
 # ------------------------- OPTIONAL: GPU INFO --------------------------------
 if command -v nvidia-smi >/dev/null 2>&1; then
