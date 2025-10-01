@@ -1,31 +1,48 @@
+report_to: [wandb]
+disable_tqdm: false
 wandb_project: llama3-subjective-sft #
 wandb_name: llama3-8b_subjective_sft_reasoning
 wandb_mode: online
-wandb_log_model: "end"                        # "checkpoint" logs every save; "end" only final model
+wandb_log_model: "end"    
+logging_first_step: true                   
 logging_steps: 10
 
 base_model: meta-llama/Meta-Llama-3-8B-Instruct        # Hugging Face model ID for LLaMA3-8B-Instruct
 model_type: LlamaForCausalLM                          # Model architecture class (Llama causal language model)
-tokenizer_type: AutoTokenizer                        # Tokenizer class matching the LLaMA model
+tokenizer_type: AutoTokenizer                        
 is_llama_derived_model: true                          # Indicates this model is LLaMA-based (for internal optimizations)
 
 output_dir: ./output/llama3-8b-sft                    # Directory to save the fine-tuned model
 num_epochs: 1                                         # Train for 1 epoch over the dataset
 
-# to fit memory at the larger window on a single H100:
-gradient_checkpointing: true
-deepspeed: StyleFintuning/Training/zero2_offload.json
-micro_batch_size: 4                # was 16
-gradient_accumulation_steps: 32    # keep effective batch = 8 * 32 = 256
+#change depending on how many GPUs we have - aim for roughly 256 total batch size
+micro_batch_size: 8                 
+gradient_accumulation_steps: 32    
+deepspeed: StyleFintuning/Training/zero2_offload_master_optimizer.json
 bf16: true
+flash_attention: true
+attn_implementation: flash_attention_2
+gradient_checkpointing: true
 
-sequence_len: 2048
-max_prompt_len: 2048
+sequence_len: 4096
+#max_prompt_len: 2048
 
 
 learning_rate: 0.00002                                # Initial learning rate for the optimizer (2e-5)
 lr_scheduler: cosine                                  # Use a cosine decay learning rate scheduler
-optimizer: adamw_torch                             
+optimizer: adamw_torch        
+
+eot_tokens:
+  - "<|eot_id|>"
+train_on_eot: turn            # include the end-of-turn token in labels per assistant turn
+train_on_eos: last            # include EOS only at the very end (keeps labels clean)
+
+excess_length_strategy: truncate   # don't silently drop long rows
+pad_to_sequence_len: true
+
+special_tokens:
+  pad_token: "<|end_of_text|>"
+
 
 datasets:
 
@@ -47,8 +64,3 @@ datasets:
         - user
     
     roles_to_train: ["assistant"]
-    train_on_eos: "turn"
-
-#we dont need this for Llama training because the chat template is llama3 and is consistent with the tokenization
-special_tokens:
-  pad_token: "<|end_of_text|>"

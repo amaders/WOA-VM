@@ -1,23 +1,7 @@
 Notes for Axolotl YAML SFT Config 
 
-
-```
-datasets:
-
-  - path: /Users/amader/Desktop/Work/CuiLab/WOA_VM/StyleFintuning/Data/ax_data/train.jsonl #path to trian dataset
-    type: #type is null for SFT
-
-    chat_template: chatml #we are using ChatML instruction format for training
-
-    message_property_mappings:  # our mapping is consistent with ChatML
-      role: role
-      content: content
-    
-
-    #define how to map role keys to roles (this is may be redundant, but whatever)
-    roles:
-      assistant:
-        - assistant
-      user:
-        - user
-```
+Steps to train:
+(all using .venv)
+1. run either StyleFintuning/Data/dataset_prep_no_reasoning.ipynb or StyleFintuning/Data/dataset_prep_reasoning.ipynb to create the datasets
+2. point config.yaml to those datasets
+3. axolotl train StyleFintuning/Training/config.yaml

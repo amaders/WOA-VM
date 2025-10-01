@@ -13,7 +13,8 @@ set -euo pipefail
 PY_VER="${PY_VER:-3.11}"
 VENV_DIR="${VENV_DIR:-.venv}"
 # Default to a minimum acceptable version; allow override via env TORCH_VERSION
-TORCH_VERSION="${TORCH_VERSION:-2.6.0}"
+# NOTE: PyTorch 2.7+ uses the new C++11 ABI which is compatible with flash-attn prebuilt wheels
+TORCH_VERSION="${TORCH_VERSION:-2.8.0}"
 INSTALL_ACCELERATE="${INSTALL_ACCELERATE:-1}"
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -108,15 +109,17 @@ ensure_pip_in_venv
 try_torch() { "${VENV_PY}" -m pip install --upgrade --extra-index-url "$1" "torch==${TORCH_VERSION}"; }
 
 echo "[bootstrap] installing torch==${TORCH_VERSION} (CUDA wheels)..."
-# Try newest CUDA runtime first (cu124), then cu121, then cu118
-if try_torch https://download.pytorch.org/whl/cu124; then
+# Try newest CUDA runtime first (cu126), then cu124, cu121, then cu118
+if try_torch https://download.pytorch.org/whl/cu126; then
+  echo "[bootstrap] torch (cu126) installed into ${VENV_DIR}"
+elif try_torch https://download.pytorch.org/whl/cu124; then
   echo "[bootstrap] torch (cu124) installed into ${VENV_DIR}"
 elif try_torch https://download.pytorch.org/whl/cu121; then
   echo "[bootstrap] torch (cu121) installed into ${VENV_DIR}"
 elif try_torch https://download.pytorch.org/whl/cu118; then
   echo "[bootstrap] torch (cu118) installed into ${VENV_DIR}"
 else
-  echo "[bootstrap] ERROR: torch install failed for cu124, cu121 & cu118. Check 'nvidia-smi'/drivers."; exit 1
+  echo "[bootstrap] ERROR: torch install failed for cu126, cu124, cu121 & cu118. Check 'nvidia-smi'/drivers."; exit 1
 fi
 
 # --------------------- INSTALL THE REST (reuse torch) -----------------------
@@ -144,6 +147,7 @@ echo "[bootstrap] installing axolotl prerequisites..."
 "${VENV_PY}" -m pip install -U packaging==23.2 setuptools==75.8.0 wheel ninja
 
 echo "[bootstrap] installing axolotl with flash-attn and deepspeed..."
+# NOTE: flash-attn is built from source to ensure C++11 ABI compatibility with PyTorch 2.7+
 "${VENV_PY}" -m pip install --no-build-isolation axolotl[flash-attn,deepspeed]
 
 # ------------------------- OPTIONAL: GPU INFO --------------------------------
